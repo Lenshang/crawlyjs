@@ -1,0 +1,16 @@
+{
+  "name": "crawlyjs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/crawly.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lenshang",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "async": "^3.2.0",
+    "axios": "^0.21.0"
+  }
+}
