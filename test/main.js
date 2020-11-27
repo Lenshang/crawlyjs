@@ -1,16 +1,15 @@
 import crawly from "../src/crawly.js";
-console.log("Crawly.JS Tester")
-class MongoPipeline extends crawly.Pipeline{
-    process_item(item,spider){
-        console.log(`商品已储存:${item.get("item_name")}`);
-    }
-}
+import JustPrintPipeline from "./JustPrintPipeline.js";
+import JustPrintMiddleware from "./JustPrintMiddleware.js";
 class TestSpider extends crawly.Spider{
     name="test";
     custom_settings={
         THREADNUM:1,
         ITEM_PIPELINES:[
-            MongoPipeline
+            JustPrintPipeline
+        ],
+        MIDDLEWARES:[
+            JustPrintMiddleware
         ]
     }
     headers = {
