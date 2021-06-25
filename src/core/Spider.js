@@ -3,6 +3,9 @@ import Request from "./Request.js";
 import Item from "./Item.js";
 import AxiosMiddleware from "./middleware/AxiosMiddleware.js";
 import RetryMiddleware from "./middleware/RetryMiddleware.js";
+import log4js from 'log4js';
+import AsyncLock from "async-lock";
+import Thread from "../utils/thread.js";
 export default class Spider{
     name=null;
     custom_settings=null;
@@ -15,6 +18,16 @@ export default class Spider{
         if(this.custom_settings==null){
             this.custom_settings=settings;
         }
+        if(!this.custom_settings.MAXTHREAD){
+            this.custom_settings.MAXTHREAD=3;
+        }
+        this.logger = log4js.getLogger(name);
+        this.logger.level = "info";
+        log4js.configure({
+            appenders: { 'out': { type: 'stdout', layout: { type: 'basic' } } },
+            categories: { default: { appenders: ['out'], level: 'info' } }
+        });
+        this.lock=new AsyncLock();
     }
 
     init(){
@@ -46,31 +59,51 @@ export default class Spider{
 
         //初始化队列
         let _this=this;
-        this.task_queue = async.queue((task, callback)=>{
+        this.task_queue = async.queue(async (task, callback)=>{
             if(task instanceof Request){
-                task.execute(this.middlewares,this).then(response=>{
+                var response=await task.execute(this.middlewares,this);
+
+                await this.lock.acquire("spider",async ()=>{
                     if(response instanceof Request){
                         _this._add_task(response);
                     }
+                    else if(!task.callback){
+                        throw new Error("can not find callback method,please check your request!");
+                    }
                     else{
-                        let iterator=task.callback.call(this,response);
-                        let item=iterator.next();
+                        let iterator=task.callback.call(_this,response);
+                        let item=await iterator.next();
                         while(!item.done){
-                            _this._add_task(item.value);
-                            item=iterator.next();
+                            _this._add_first(item.value);
+                            item=await iterator.next();
                         }
                     }
-                    callback();
+                    await callback();
                 });
             }
             else if(task instanceof Item){
                 let _task=task;
-                (async ()=>{
-                    for(let pipeline of this.pipelines){
+                for(let pipeline of this.pipelines){
+                    let _pipline=async ()=>{
+                        if(!pipeline.isInit){
+                            await pipeline.init(this);
+                            pipeline.isInit=true;
+                        }
                         _task=await pipeline.process_item(_task,this);
                     }
-                    callback();
-                })();
+                    if(!pipeline.isAsync){
+                        await this.lock.acquire("spider",async ()=>{
+                            await _pipline();
+                        });
+                    }
+                    else{
+                        await _pipline();
+                    }
+
+                }
+                await this.lock.acquire("spider",async ()=>{
+                    await callback();
+                });
             }
         }, this.custom_settings.MAXTHREAD);
     }
@@ -81,20 +114,31 @@ export default class Spider{
     }
 
     _add_task(item){
-        this.task_queue.push(item)
+        this.task_queue.push(item);
+    }
+    _add_first(item){
+        this.task_queue.unshift(item);
     }
 
     async run(){
         this.init();
-        let iterator=this.start_requests();
-        let item=iterator.next();
+        let iterator=await this.start_requests();
+        let item=await iterator.next();
         while(!item.done){
+            // if(this.task_queue.length>this.custom_settings.MAXTHREAD){
+            //     Thread.sleep(100);
+            //     continue
+            // }
             this._add_task(item.value);
-            item=iterator.next();
+            item=await iterator.next();
         }
 
         return new Promise((resolve,rejave)=>{
-            this.task_queue.drain(()=>{
+            var _this=this;
+            this.task_queue.drain(async ()=>{
+                for(let pipeline of this.pipelines){
+                    await pipeline.on_close();
+                }
                 resolve();
             });
         });

@@ -7,4 +7,18 @@ export default class extends Map{
             }
         }
     }
+    allkeys(){
+        var r=[];
+        for(var k in this){
+            r.push(k);
+        }
+        return r;
+    }
+    allvalues(){
+        var r=[]
+        for(var k in this){
+            r.push(this[k]);
+        }
+        return r;
+    }
 }

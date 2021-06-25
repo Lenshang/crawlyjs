@@ -26,12 +26,6 @@ export default class Request{
             if(mid.process_response){
                 pcs_resp.push([mid.process_response,mid]);
             }
-            // if(item instanceof Request&& mid.process_request){
-            //     item=await mid.process_request(item,spider);
-            // }
-            // else if(item instanceof Response&& mid.process_response){
-            //     item=await mid.process_response(item,spider);
-            // }
         }
 
         for(let req of pcs_req){
