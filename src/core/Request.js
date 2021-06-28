@@ -9,7 +9,7 @@ export default class Request{
         this.headers=option.headers;
         this.meta=option.meta;
         this.data=option.data;
-
+        this.body=option.body;
         if(!this.meta){
             this.meta={};
         }
@@ -29,7 +29,12 @@ export default class Request{
         }
 
         for(let req of pcs_req){
-            item=await req[0].call(req[1],item,spider);
+            try{
+                item=await req[0].call(req[1],item,spider);
+            }
+            catch(err){
+                spider.logger.error(err);
+            }
             if(item instanceof Response){
                 break;
             }

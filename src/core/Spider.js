@@ -2,6 +2,7 @@ import async from 'async';
 import Request from "./Request.js";
 import Item from "./Item.js";
 import AxiosMiddleware from "./middleware/AxiosMiddleware.js";
+import RequestPromiseMiddleWare from './middleware/RequestPromiseMiddleWare.js';
 import RetryMiddleware from "./middleware/RetryMiddleware.js";
 import log4js from 'log4js';
 import AsyncLock from "async-lock";
@@ -60,10 +61,12 @@ export default class Spider{
             retry.init(this);
             this.middlewares.push(retry);
         }
-        let axios=new AxiosMiddleware();
-        axios.init();
-        this.middlewares.push(axios);
-
+        // let axios=new AxiosMiddleware();
+        // axios.init();
+        // this.middlewares.push(axios);
+        let rp=new RequestPromiseMiddleWare();
+        rp.init();
+        this.middlewares.push(rp);
 
         //初始化队列
         let _this=this;
