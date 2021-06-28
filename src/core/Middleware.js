@@ -1,5 +1,5 @@
 export default class{
-    init(spider){
+    async init(spider){
 
     }
     // async process_request(request,spider){

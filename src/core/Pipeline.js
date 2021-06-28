@@ -1,7 +1,5 @@
 
 export default class{
-    isInit=false;
-    isAsync=true;
     async init(spider){
 
     }

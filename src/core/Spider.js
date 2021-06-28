@@ -30,11 +30,19 @@ export default class Spider{
         this.lock=new AsyncLock();
     }
 
-    init(){
+    async init(){
         //初始化PIPELINE
         if(this.custom_settings.ITEM_PIPELINES){
             for(let Pipe of this.custom_settings.ITEM_PIPELINES){
-                this.pipelines.push(new Pipe());
+                try{
+                    let _pip=new Pipe();
+                    await _pip.init();
+                    this.pipelines.push(_pip);
+                }
+                catch(err){
+                    this.logger.error(err);
+                    process.exit();
+                }
             }
         }
 
@@ -43,7 +51,7 @@ export default class Spider{
         if(this.custom_settings.MIDDLEWARES){
             for(let Mid of this.custom_settings.MIDDLEWARES){
                 let mid=new Mid();
-                mid.init(this);
+                await mid.init(this);
                 this.middlewares.push(mid);
             }
         }
@@ -64,45 +72,49 @@ export default class Spider{
                 var response=await task.execute(this.middlewares,this);
 
                 await this.lock.acquire("spider",async ()=>{
-                    if(response instanceof Request){
-                        _this._add_task(response);
-                    }
-                    else if(!task.callback){
-                        throw new Error("can not find callback method,please check your request!");
-                    }
-                    else{
-                        let iterator=task.callback.call(_this,response);
-                        let item=await iterator.next();
-                        while(!item.done){
-                            _this._add_first(item.value);
-                            item=await iterator.next();
+                    try{
+                        if(response instanceof Request){
+                            _this._add_task(response);
+                        }
+                        else if(!task.callback){
+                            throw new Error("can not find callback method,please check your request!");
+                        }
+                        else{
+                            let iterator=task.callback.call(_this,response);
+                            let item=await iterator.next();
+                            while(!item.done){
+                                _this._add_first(item.value);
+                                item=await iterator.next();
+                            }
+                        }
+                        if(callback){
+                            await callback();
                         }
                     }
-                    await callback();
+                    catch(err){
+                        this.logger.error(err);
+                        process.exit();
+                    }
                 });
             }
             else if(task instanceof Item){
                 let _task=task;
                 for(let pipeline of this.pipelines){
                     let _pipline=async ()=>{
-                        if(!pipeline.isInit){
-                            await pipeline.init(this);
-                            pipeline.isInit=true;
+                        try{
+                            _task=await pipeline.process_item(_task,this);
                         }
-                        _task=await pipeline.process_item(_task,this);
+                        catch(err){
+                            this.logger.error(err);
+                            process.exit();
+                        }
                     }
-                    if(!pipeline.isAsync){
-                        await this.lock.acquire("spider",async ()=>{
-                            await _pipline();
-                        });
-                    }
-                    else{
-                        await _pipline();
-                    }
-
+                    await _pipline();
                 }
                 await this.lock.acquire("spider",async ()=>{
-                    await callback();
+                    if(callback){
+                        await callback();
+                    }
                 });
             }
         }, this.custom_settings.MAXTHREAD);
@@ -121,25 +133,36 @@ export default class Spider{
     }
 
     async run(){
-        this.init();
-        let iterator=await this.start_requests();
-        let item=await iterator.next();
-        while(!item.done){
-            // if(this.task_queue.length>this.custom_settings.MAXTHREAD){
-            //     Thread.sleep(100);
-            //     continue
-            // }
-            this._add_task(item.value);
-            item=await iterator.next();
+        try{
+            await this.init();
+            let iterator=await this.start_requests();
+            let item=await iterator.next();
+            while(!item.done){
+                // if(this.task_queue.length>this.custom_settings.MAXTHREAD){
+                //     Thread.sleep(100);
+                //     continue
+                // }
+                this._add_task(item.value);
+                item=await iterator.next();
+            }
+        }
+        catch(err){
+            this.logger.error(err);
+            process.exit();
         }
 
         return new Promise((resolve,rejave)=>{
             var _this=this;
             this.task_queue.drain(async ()=>{
-                for(let pipeline of this.pipelines){
-                    await pipeline.on_close();
+                try{
+                    for(let pipeline of this.pipelines){
+                        await pipeline.on_close();
+                    }
+                    resolve();
                 }
-                resolve();
+                catch(err){
+                    this.logger.error(err);
+                }
             });
         });
     }
