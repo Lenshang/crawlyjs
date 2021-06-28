@@ -175,18 +175,19 @@ export default class Spider{
         var t2=new Promise((resolve,rejave)=>{
             var _this=this;
             this.item_queue.drain(async ()=>{
-                try{
-                    for(let pipeline of this.pipelines){
-                        await pipeline.on_close();
-                    }
-                    resolve();
-                }
-                catch(err){
-                    this.logger.error(err);
-                }
+                resolve();
             });
         });
-        return Promise.all([t1]);
+        await Promise.all([t1,t2]);
+        try{
+            for(let pipeline of this.pipelines){
+                await pipeline.on_close();
+            }
+            
+        }
+        catch(err){
+            this.logger.error(err);
+        }
     }
 }
 
