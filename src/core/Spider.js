@@ -71,59 +71,63 @@ export default class Spider{
         //初始化队列
         let _this=this;
         this.task_queue = async.queue(async (task, callback)=>{
-            if(task instanceof Request){
-                var response=await task.execute(this.middlewares,this);
+            var response=await task.execute(this.middlewares,this);
 
-                await this.lock.acquire("spider",async ()=>{
-                    try{
-                        if(response instanceof Request){
-                            _this._add_task(response);
-                        }
-                        else if(!task.callback){
-                            throw new Error("can not find callback method,please check your request!");
-                        }
-                        else{
-                            let iterator=task.callback.call(_this,response);
-                            let item=await iterator.next();
-                            while(!item.done){
-                                _this._add_first(item.value);
-                                item=await iterator.next();
+            await this.lock.acquire("spider",async ()=>{
+                try{
+                    if(response instanceof Request){
+                        _this._add_task(response);
+                    }
+                    else if(!task.callback){
+                        throw new Error("can not find callback method,please check your request!");
+                    }
+                    else{
+                        let iterator=task.callback.call(_this,response);
+                        let item=await iterator.next();
+                        while(!item.done){
+                            let _item=item.value;
+                            if(_item instanceof Request){
+                                _this._add_task(item.value);
                             }
+                            else{
+                                _this._add_item(_item);
+                            }
+                            item=await iterator.next();
                         }
-                        if(callback){
-                            await callback();
-                        }
+                    }
+                    if(callback){
+                        await callback();
+                    }
+                }
+                catch(err){
+                    this.logger.error(err);
+                    process.exit();
+                }
+            });
+        }, this.custom_settings.MAXTHREAD);
+        this.item_queue=async.queue(async (task,callback)=>{
+            let _task=task;
+            for(let pipeline of this.pipelines){
+                let _pipline=async ()=>{
+                    try{
+                        _task=await pipeline.process_item(_task,this);
                     }
                     catch(err){
                         this.logger.error(err);
                         process.exit();
                     }
-                });
-            }
-            else if(task instanceof Item){
-                let _task=task;
-                for(let pipeline of this.pipelines){
-                    let _pipline=async ()=>{
-                        try{
-                            _task=await pipeline.process_item(_task,this);
-                        }
-                        catch(err){
-                            this.logger.error(err);
-                            process.exit();
-                        }
-                    }
-                    if(this.custom_settings.ASYNC_PIPELINE){
+                }
+                if(this.custom_settings.ASYNC_PIPELINE){
+                    await _pipline();
+                }
+                else{
+                    await this.lock.acquire("spider",async ()=>{
                         await _pipline();
-                    }
-                    else{
-                        await this.lock.acquire("spider",async ()=>{
-                            await _pipline();
-                        });
-                    }
+                    });
                 }
-                if(callback){
-                    await callback();
-                }
+            }
+            if(callback){
+                await callback();
             }
         }, this.custom_settings.MAXTHREAD);
     }
@@ -138,6 +142,9 @@ export default class Spider{
     }
     _add_first(item){
         this.task_queue.unshift(item);
+    }
+    _add_item(item){
+        this.item_queue.push(item);
     }
 
     async run(){
@@ -159,9 +166,15 @@ export default class Spider{
             process.exit();
         }
 
-        return new Promise((resolve,rejave)=>{
+        var t1= new Promise((resolve,rejave)=>{
             var _this=this;
             this.task_queue.drain(async ()=>{
+                resolve();
+            });
+        });
+        var t2=new Promise((resolve,rejave)=>{
+            var _this=this;
+            this.item_queue.drain(async ()=>{
                 try{
                     for(let pipeline of this.pipelines){
                         await pipeline.on_close();
@@ -173,6 +186,7 @@ export default class Spider{
                 }
             });
         });
+        return Promise.all([t1]);
     }
 }
 
