@@ -109,13 +109,18 @@ export default class Spider{
                             process.exit();
                         }
                     }
-                    await _pipline();
-                }
-                await this.lock.acquire("spider",async ()=>{
-                    if(callback){
-                        await callback();
+                    if(this.custom_settings.ASYNC_PIPELINE){
+                        await _pipline();
                     }
-                });
+                    else{
+                        await this.lock.acquire("spider",async ()=>{
+                            await _pipline();
+                        });
+                    }
+                }
+                if(callback){
+                    await callback();
+                }
             }
         }, this.custom_settings.MAXTHREAD);
     }
