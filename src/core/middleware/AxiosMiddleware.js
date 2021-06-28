@@ -12,7 +12,9 @@ export default class extends Middleware{
             if(request.data){
                 option.data=request.data;
             }
-    
+            if(request.body){
+                option.data=request.body;
+            }
             let res=await axios(option);
             let response=new Response(request);
             response.origin=res;

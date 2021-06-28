@@ -61,12 +61,12 @@ export default class Spider{
             retry.init(this);
             this.middlewares.push(retry);
         }
-        // let axios=new AxiosMiddleware();
-        // axios.init();
-        // this.middlewares.push(axios);
-        let rp=new RequestPromiseMiddleWare();
-        rp.init();
-        this.middlewares.push(rp);
+        let axios=new AxiosMiddleware();
+        axios.init();
+        this.middlewares.push(axios);
+        // let rp=new RequestPromiseMiddleWare();
+        // rp.init();
+        // this.middlewares.push(rp);
 
         //初始化队列
         let _this=this;
