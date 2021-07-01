@@ -2,6 +2,7 @@ import async from 'async';
 import Request from "./Request.js";
 import Item from "./Item.js";
 import AxiosMiddleware from "./middleware/AxiosMiddleware.js";
+import MultiProcessAxiosMiddleWare from './middleware/MultiProcessAxiosMiddleWare.js';
 import RequestPromiseMiddleWare from './middleware/RequestPromiseMiddleWare.js';
 import RetryMiddleware from "./middleware/RetryMiddleware.js";
 import log4js from 'log4js';
@@ -157,26 +158,15 @@ export default class Spider{
                 this._add_task(item.value);
                 item=await iterator.next();
             }
+            await this.task_queue.drain();
+            for(let pipeline of this.pipelines){
+                await pipeline.on_close();
+            }
         }
         catch(err){
             this.logger.error(err);
             process.exit();
         }
-
-        return new Promise((resolve,rejave)=>{
-            var _this=this;
-            this.task_queue.drain(async ()=>{
-                try{
-                    for(let pipeline of this.pipelines){
-                        await pipeline.on_close();
-                    }
-                    resolve();
-                }
-                catch(err){
-                    this.logger.error(err);
-                }
-            });
-        });
     }
 }
 

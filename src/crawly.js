@@ -5,6 +5,7 @@ import Pipeline from "./core/Pipeline.js";
 import Middleware from "./core/Middleware.js";
 import Item from "./core/Item.js";
 import Utils from "./utils/utils.js";
+import cluster from "cluster";
 export default {
     Spider,
     Request,
