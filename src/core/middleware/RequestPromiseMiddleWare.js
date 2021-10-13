@@ -1,6 +1,7 @@
 import Middleware from "../Middleware.js";
 import Response from "../Response.js";
 import rp from "request-promise";
+
 export default class extends Middleware{
     async process_request(request,spider){
         try{
